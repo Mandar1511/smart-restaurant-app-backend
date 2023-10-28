@@ -18,12 +18,15 @@ exports.authenticate = asyncHandler(async (req, res, next) => {
   ) {
     token = req.headers.authorization.split(" ")[1];
     const decoded_token = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded_token.id).select("-password");
-    next();
+    const user = await User.findById(decoded_token.id).select("-password");
+    if (!user.isVerified) {
+      throw new CustomError("Unauthenticated user", 401);
+    }
+    req.user = user;
+  } else {
+    throw new CustomError("Unauthenticated user", 401);
   }
-  const error = new Error("Unauthenticated user");
-  error.statusCode = 401;
-  throw error;
+  next();
 });
 
 exports.signup = asyncHandler(async (req, res) => {
@@ -35,16 +38,20 @@ exports.signup = asyncHandler(async (req, res) => {
   if (user && user.isVerified) {
     throw new CustomError(
       "Account with this email already exists. Please SignIn",
-      401
+      409
     );
-  }
-  if (sendOtp(email)) {
-    let newUser = await User.create({
+  } else if (user && !user.isVerified) {
+    sendOtp(email);
+    res.status(201).json(user);
+  } else if (!user && sendOtp(email)) {
+    await User.create({
       firstName,
       lastName,
       role,
       email,
       password,
+      isVerified: false,
+      pointCashBack: 0,
     });
     res.status(201).json({
       firstName,
@@ -70,7 +77,6 @@ exports.signin = asyncHandler(async (req, res) => {
       token: generateToken(user._id),
     });
   } else {
-    res.status(401);
     throw new CustomError("Invalid email or password", 409);
   }
 });

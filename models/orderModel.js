@@ -24,13 +24,14 @@ const orderSchema = new mongoose.Schema({
     type: String,
     enum: [
       "pending",
-      "confirmed by waiter",
-      "confirmed by chef",
-      "order is ready",
-      "payment done",
+      "confirmed_by_waiter",
+      "confirmed_by_chef",
+      "order_is_ready",
+      "payment_done",
     ],
     default: "pending",
   },
+  isRated: { type: Boolean, default: false },
 });
 
 const Order = mongoose.model("Order", orderSchema);

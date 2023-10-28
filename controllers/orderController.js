@@ -29,34 +29,35 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
   if (
     req.user &&
     req.user.role == "customer" &&
-    currentOrder.user == req.user._id
+    currentOrder.user.toString() == req.user._id
   ) {
     if (currentOrder.status != "pending") {
       throw new CustomError("You can't cancel order now!", 400);
     }
     await Order.findByIdAndDelete(req.params.id);
-    res.status(204);
+    res.status(204).json();
   }
   // waiter deletes the order
-  else if (req.user && currentOrder.waiter == req.user._id) {
+  else if (req.user && req.user.role === "waiter") {
     if (
-      currentOrder.status != "pending" &&
-      currentOrder.status != "confirmed by waiter"
+      currentOrder.status !== "pending" &&
+      currentOrder.status !== "confirmed_by_waiter"
     ) {
       throw new CustomError("You can't cancel the order now", 400);
     }
     await Order.findByIdAndDelete(req.params.id);
-    res.status(204);
+    res.status(204).json();
   }
   // chef deletes the order
   else if (
     req.user &&
-    currentOrder.chef == req.user._id &&
-    (currentOrder.status == "confirmed by waiter" ||
-      currentOrder.status == "confirmed by chef")
+    currentOrder.chef.toString() == req.user._id &&
+    (currentOrder.status == "confirmed_by_waiter" ||
+      currentOrder.status == "confirmed_by_chef")
   ) {
     await Order.findByIdAndDelete(req.params.id);
-    res.status(200);
+    const message = "order deleted successfully";
+    res.status(204).json();
   } else {
     throw new CustomError("You can't cancel the order now", 403);
   }
@@ -72,22 +73,33 @@ exports.updateOrder = asyncHandler(async (req, res) => {
   // customer can update his order if it is in pending state
   if (req.user && req.user.role == "customer") {
     // ensuring if customer who created this order is updating and waiter hasn't confirmed it yet
-    if (currentOrder.status == "pending" && currentOrder.user == req.user._id) {
+    if (
+      currentOrder.status == "pending" &&
+      currentOrder.user.toString() == req.user._id
+    ) {
       req.body.status = "pending";
       currentOrder.set(req.body);
       await currentOrder.save();
       res.status(201).json(currentOrder);
+    } else if (currentOrder.status === "payment_done") {
+      currentOrder.set(req.body);
+      await currentOrder.save();
+      res.status(201).json(currentOrder);
+    } else {
+      throw new CustomError("You can't change the order now, call waiter", 400);
     }
-    throw new CustomError("You can't change the order now, call waiter", 400);
   }
 
   // waiter will go to that table number and click on confirm button
   else if (req.user && req.user.role == "waiter") {
-    if (currentOrder.status == "confirmed by waiter") {
+    if (
+      currentOrder.waiter &&
+      currentOrder.waiter.toString() !== req.user._id.toString()
+    ) {
       throw new CustomError("Other waiter has picked up this order", 400);
     }
     req.body.waiter = req.user._id;
-    req.body.status = "confirmed by waiter";
+    req.body.status = "confirmed_by_waiter";
     currentOrder.set(req.body);
     await currentOrder.save();
     res.status(201).json(currentOrder);
@@ -96,7 +108,10 @@ exports.updateOrder = asyncHandler(async (req, res) => {
   // master chef will click on preparation started button
   // You should pass status key in the body for calling this API
   else if (req.user && req.user.role == "chef") {
-    if (currentOrder.status == "confirmed by waiter") {
+    if (
+      currentOrder.chef &&
+      currentOrder.chef.toString() !== req.user._id.toString()
+    ) {
       throw new CustomError("Other chef has started the preparation");
     }
     req.body.chef = req.user._id;
@@ -112,14 +127,29 @@ exports.updateOrder = asyncHandler(async (req, res) => {
 // /api/v1/orders?status=pending
 exports.getOrders = asyncHandler(async (req, res) => {
   if (!req.user) {
-    throw new CustomError("You are not alllowed to view the orders");
+    throw new CustomError("You are not alllowed to view the orders", 404);
   }
-  const features = new APIFeatures(MenuItem.find(), req.query)
+  const features = new APIFeatures(Order.find(), req.query)
     .filter()
     .sort()
     .limitFields()
     .paginate();
   let orders = [];
-  orders = await features.query.find();
+  orders = await features.query.find().populate({
+    path: "menuItems.menuName", // Populate the 'menuName' field with MenuItem data
+    select: "name price isVeg", // Select the fields you want from the MenuItem
+  });
   res.status(200).json(orders);
+});
+
+exports.updatePaymentStatus = asyncHandler(async (customerId) => {
+  const query = {
+    user: customerId,
+    status: "order_is_ready",
+  };
+
+  const update = {
+    $set: { status: "payment_done" },
+  };
+  const result = await Order.updateMany(query, update);
 });
