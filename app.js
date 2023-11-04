@@ -11,6 +11,8 @@ const userRouter = require("./routes/userRoutes");
 const menuItemRouter = require("./routes/menuItemRoutes");
 const orderRouter = require("./routes/orderRoutes");
 const paymentRouter = require("./payment");
+const ratingRouter=require("./routes/ratingRoutes")
+const staffRouter=require("./routes/staffRoutes");
 const errorController = require("./controllers/errorController");
 const app = express();
 const limiter = rateLimit({
@@ -42,5 +44,7 @@ app.use("/api/v1/users", userRouter);
 app.use("/api/v1/menuItems", menuItemRouter);
 app.use("/api/v1/orders", orderRouter);
 app.use("/api/payment", paymentRouter);
+app.use("/api/v1/rating",ratingRouter);
+app.use("/api/v1/staff", staffRouter);
 app.use(errorController);
 module.exports = app;
