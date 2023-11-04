@@ -4,7 +4,7 @@ const authController = require("../controllers/authController");
 const ratingController = require("../controllers/ratingController");
 const router = express.Router();
 
-//router.use(authController.authenticate);
+router.use(authController.authenticate);
 
 router
   .route("/")

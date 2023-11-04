@@ -19,4 +19,6 @@ router
 router
   .route("/calculateTotal")
   .get(calculateOrderTotal.calculateTotalForOneCustomer);
+
+router.route("/calculateTotalForDay").get(calculateOrderTotal.calculateTotalForDay);
 module.exports = router;
